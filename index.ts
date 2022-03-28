@@ -1,18 +1,11 @@
-import './editor'
-import { editor } from 'monaco-editor/esm/vs/editor/editor.api'
-import TramsformWorker from './worker.ts?worker'
-
-const mountEditor = (root: string, readOnly = false) =>
-  editor.create(document.querySelector(root), {
-    language: 'typescript',
-    readOnly,
-    minimap: { enabled: false },
-  })
-
-let transformWorker = new TramsformWorker()
+import { mountEditor } from './monaco'
 
 let srcEditor = mountEditor('#src')
 let resultEditor = mountEditor('#result', true)
+
+let transformWorker = new Worker(new URL('./worker.ts', import.meta.url), {
+  type: 'module',
+})
 
 srcEditor
   .getModel()
@@ -20,9 +13,8 @@ srcEditor
     transformWorker.postMessage(srcEditor.getModel().getValue())
   )
 
-transformWorker.addEventListener('message', (e) =>
-  resultEditor.setValue(e.data)
-)
+transformWorker.addEventListener('message', (e) => resultEditor.setValue(e.data))
+
 transformWorker.addEventListener('error', console.error)
 
 srcEditor.setValue(`import { Component, Prop, Vue } from 'vue-property-decorator'
