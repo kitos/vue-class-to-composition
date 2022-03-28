@@ -1,4 +1,4 @@
-import { mountEditor } from './monaco'
+import { mountEditor } from './editor'
 
 let srcEditor = mountEditor('#src')
 let resultEditor = mountEditor('#result', true)

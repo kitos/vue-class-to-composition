@@ -2,10 +2,9 @@
   "name": "vue-class-to-composition",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "start": "parcel index.html",
-    "build": "vite build",
+    "build": "parcel build index.html",
     "serve": "npx serve dist"
   },
   "prettier": {
