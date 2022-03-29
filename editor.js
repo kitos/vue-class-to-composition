@@ -32,4 +32,5 @@ export let mountEditor = (root, readOnly = false) =>
     language: 'typescript',
     readOnly,
     minimap: { enabled: false },
+    scrollBeyondLastLine: false
   })
