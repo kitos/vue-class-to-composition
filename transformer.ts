@@ -1,6 +1,5 @@
 import type { JSCodeshift } from 'jscodeshift'
 import * as K from 'ast-types/gen/kinds'
-import { Decorator } from 'jscodeshift'
 
 let getDecorator = (n: any, name: string): K.DecoratorKind | undefined =>
   n.decorators && n.decorators.find((d) => d.expression.callee.name === name)
@@ -63,8 +62,6 @@ const transformer = (src: string, j: JSCodeshift) => {
           let injectDecorator = getDecorator(classMethod, 'Inject')
           let propDecorator = getDecorator(classMethod, 'Prop')
 
-          exposeToTemplate.push(propName)
-
           // inject
           if (
             injectDecorator &&
@@ -76,6 +73,7 @@ const transformer = (src: string, j: JSCodeshift) => {
               : str('unknown-key')
             let type = classMethod.typeAnnotation.typeAnnotation
 
+            exposeToTemplate.push(propName)
             injects.push(
               statement`const ${propName} = inject<${type}>(${injectName});`
             )

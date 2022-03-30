@@ -20,6 +20,7 @@ transformWorker.addEventListener('message', (e) =>
 transformWorker.addEventListener('error', console.error)
 
 srcEditor.setValue(`import { Component, Prop, Vue } from 'vue-property-decorator'
+import { Button } from '@/components'
 
 @Component<ProgressBar>({
   components: { Button }
