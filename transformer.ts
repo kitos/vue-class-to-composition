@@ -1,7 +1,8 @@
 import type { JSCodeshift } from 'jscodeshift'
 import * as K from 'ast-types/gen/kinds'
+import { Decorator } from 'jscodeshift'
 
-let getDecorator = (n: any, name: string): K.DecoratorKind =>
+let getDecorator = (n: any, name: string): K.DecoratorKind | undefined =>
   n.decorators && n.decorators.find((d) => d.expression.callee.name === name)
 
 const transformer = (src: string, j: JSCodeshift) => {
@@ -15,67 +16,153 @@ const transformer = (src: string, j: JSCodeshift) => {
 
   let call = (
     n: string,
-    args: (K.ExpressionKind | K.SpreadElementKind)[] = []
-  ) => j.callExpression(j.identifier(n), args)
+    args: (K.ExpressionKind | K.SpreadElementKind)[] = [],
+    typeParameters: any = null
+  ) =>
+    j.callExpression.from({
+      callee: j.identifier(n),
+      arguments: args,
+      // @ts-ignore
+      typeParameters,
+    })
 
-  return j(src)
-    .find(j.ClassDeclaration)
-    .forEach((path) => {
-      let classMethods = path.node.body.body
+  let { statement } = j.template
 
-      const propSrc = classMethods.filter((m) => getDecorator(m, 'Prop'))
-      const injectSrc = classMethods.filter((m) => getDecorator(m, 'Inject'))
-      const gettersSrc = classMethods.filter((m) => m.kind === 'get')
-      const otherItems = classMethods.filter(
-        (m) =>
-          !propSrc.includes(m) &&
-          !injectSrc.includes(m) &&
-          !gettersSrc.includes(m)
+  let srcCollection = j(src)
+
+  srcCollection
+    .find(
+      j.ImportDeclaration,
+      (i) => i.source.value === 'vue-property-decorator'
+    )
+    .replaceWith(
+      j.importDeclaration(
+        ['defineComponent', 'inject', 'computed'].map((n) =>
+          j.importSpecifier(j.identifier(n))
+        ),
+        str('@vue/composition-api')
       )
+    )
 
-      let props = propSrc.map((p) => {
-        let d = getDecorator(p, 'Prop')
-        return prop(p.key.name, d.expression.arguments[0])
-      })
-      let propsProp = prop('props', j.objectExpression(props))
-
-      let injects = injectSrc.map((i) => {
-        let d = getDecorator(i, 'Inject')
-        let name = d.expression.arguments[0].value
-        return cnst(name, call('inject', [j.stringLiteral(name)]))
-      })
-
-      let computed = gettersSrc.map((g) => {
-        return cnst(
-          g.key.name,
-          call('computed', [j.arrowFunctionExpression([], g.body)])
-        )
-      })
-
-      let unknown = []
+  return srcCollection
+    .find(j.ClassDeclaration)
+    .forEach((classPath) => {
+      let classMethods = classPath.node.body.body
+      let exposeToTemplate = []
+      let injects = []
+      let props = []
+      let computed = []
       let functions = []
+      let unknown = []
 
-      for (let o of otherItems) {
-        if (j.ClassMethod.check(o)) {
-          const name = j.Identifier.check(o.key) ? o.key.name : 'someName'
-          functions.push(
-            j.functionDeclaration(j.identifier(name), o.params, o.body)
-          )
+      for (let classMethod of classMethods) {
+        if (j.ClassProperty.check(classMethod)) {
+          let propName = j.Identifier.check(classMethod.key)
+            ? classMethod.key.name
+            : 'unknown'
+          let injectDecorator = getDecorator(classMethod, 'Inject')
+          let propDecorator = getDecorator(classMethod, 'Prop')
+
+          exposeToTemplate.push(propName)
+
+          // inject
+          if (
+            injectDecorator &&
+            j.CallExpression.check(injectDecorator.expression)
+          ) {
+            let arg = injectDecorator.expression.arguments[0]
+            let injectName = j.StringLiteral.check(arg)
+              ? arg
+              : str('unknown-key')
+            let type = classMethod.typeAnnotation.typeAnnotation
+
+            injects.push(
+              statement`const ${propName} = inject<${type}>(${injectName});`
+            )
+            // prop
+          } else if (
+            propDecorator &&
+            j.CallExpression.check(propDecorator.expression)
+          ) {
+            props.push(
+              prop(propName, propDecorator.expression.arguments[0] as any)
+            )
+          } else {
+            unknown.push(classMethod)
+          }
+        } else if (j.ClassMethod.check(classMethod)) {
+          let propName = j.Identifier.check(classMethod.key)
+            ? classMethod.key.name
+            : 'unknown'
+
+          exposeToTemplate.push(propName)
+
+          // getter
+          if (classMethod.kind === 'get') {
+            computed.push(
+              statement`const ${propName} = computed(() => ${classMethod.body});`
+            )
+          } else {
+            functions.push(
+              j.functionDeclaration(
+                j.identifier(propName),
+                classMethod.params,
+                classMethod.body
+              )
+            )
+          }
         } else {
-          unknown.push(o)
+          unknown.push(classMethod)
         }
       }
+
+      let propsProp = prop('props', j.objectExpression(props))
+
+      let returnStatement = statement`return ${j.objectExpression(
+        exposeToTemplate.map((v) =>
+          j.property.from({
+            kind: 'init',
+            key: j.identifier(v),
+            shorthand: true,
+            value: j.identifier(v),
+          })
+        )
+      )}`
 
       let setup = j.objectMethod(
         'method',
         j.identifier('setup'),
         [],
-        j.blockStatement([...injects, ...computed, ...functions, ...unknown])
+        j.blockStatement([
+          ...injects,
+          ...computed,
+          ...functions,
+          ...unknown,
+          returnStatement,
+        ])
       )
 
-      j(path)
+      let componentsProp
+      let compDecorator = getDecorator(classPath.node, 'Component')?.expression
+      if (j.CallExpression.check(compDecorator)) {
+        let arg = compDecorator.arguments[0]
+        if (j.ObjectExpression.check(arg)) {
+          componentsProp = arg.properties.filter(
+            (p) =>
+              j.ObjectProperty.check(p) &&
+              j.Identifier.check(p.key) &&
+              p.key.name === 'components'
+          )[0]
+        }
+      }
+
+      j(classPath)
         .replaceWith(
-          call('defineComponent', [j.objectExpression([propsProp, setup])])
+          call('defineComponent', [
+            j.objectExpression(
+              [componentsProp, propsProp, setup].filter(Boolean)
+            ),
+          ])
         )
         .find(j.MemberExpression)
         .forEach((path) => {

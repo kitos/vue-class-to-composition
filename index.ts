@@ -13,15 +13,29 @@ srcEditor
     transformWorker.postMessage(srcEditor.getModel().getValue())
   )
 
-transformWorker.addEventListener('message', (e) => resultEditor.setValue(e.data))
+transformWorker.addEventListener('message', (e) =>
+  resultEditor.setValue(e.data)
+)
 
 transformWorker.addEventListener('error', console.error)
 
 srcEditor.setValue(`import { Component, Prop, Vue } from 'vue-property-decorator'
 
-@Component<ProgressBar>({})
+@Component<ProgressBar>({
+  components: { Button }
+})
 export default class ProgressBar extends Vue {
-@Inject('someStore') readonly someStore!: SomeStore
-@Prop({ type: Number, required: true }) readonly max!: number
-@Prop({ type: Number, default: 0 }) readonly value!: number
+  @Inject('injectKey') readonly someStore!: SomeStore
+  @Prop({ type: String, required: true }) readonly id!: number
+  @Prop({ type: Number, default: 0 }) readonly value!: number
+  
+  data: IData = null
+  
+  get compute() {
+    return this.id.toString()
+  }
+  
+  async onMounted() {
+    this.data = await fetch(this.id)
+  }
 }`)

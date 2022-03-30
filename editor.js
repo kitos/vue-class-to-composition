@@ -1,27 +1,27 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.main.js'
-import JSONWorker from 'url:monaco-editor/esm/vs/language/json/json.worker.js';
-import CSSWorker from 'url:monaco-editor/esm/vs/language/css/css.worker.js';
-import HTMLWorker from 'url:monaco-editor/esm/vs/language/html/html.worker.js';
-import TSWorker from 'url:monaco-editor/esm/vs/language/typescript/ts.worker.js';
-import EditorWorker from 'url:monaco-editor/esm/vs/editor/editor.worker.js';
+import JSONWorker from 'url:monaco-editor/esm/vs/language/json/json.worker.js'
+import CSSWorker from 'url:monaco-editor/esm/vs/language/css/css.worker.js'
+import HTMLWorker from 'url:monaco-editor/esm/vs/language/html/html.worker.js'
+import TSWorker from 'url:monaco-editor/esm/vs/language/typescript/ts.worker.js'
+import EditorWorker from 'url:monaco-editor/esm/vs/editor/editor.worker.js'
 
 self.MonacoEnvironment = {
   getWorkerUrl: function (moduleId, label) {
     if (label === 'json') {
-      return JSONWorker;
+      return JSONWorker
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return CSSWorker;
+      return CSSWorker
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return HTMLWorker;
+      return HTMLWorker
     }
     if (label === 'typescript' || label === 'javascript') {
-      return TSWorker;
+      return TSWorker
     }
-    return EditorWorker;
-  }
-};
+    return EditorWorker
+  },
+}
 
 monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
   noSemanticValidation: true,
@@ -32,5 +32,5 @@ export let mountEditor = (root, readOnly = false) =>
     language: 'typescript',
     readOnly,
     minimap: { enabled: false },
-    scrollBeyondLastLine: false
+    scrollBeyondLastLine: false,
   })

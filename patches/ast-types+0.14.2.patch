@@ -1,0 +1,13 @@
+diff --git a/node_modules/ast-types/def/typescript.js b/node_modules/ast-types/def/typescript.js
+index fad4cb1..f9bfb47 100644
+--- a/node_modules/ast-types/def/typescript.js
++++ b/node_modules/ast-types/def/typescript.js
+@@ -339,6 +339,8 @@ function default_1(fork) {
+         .field("body", [or(def("MethodDefinition"), def("VariableDeclarator"), def("ClassPropertyDefinition"), def("ClassProperty"), def("ClassPrivateProperty"), def("ClassMethod"), def("ClassPrivateMethod"), 
+         // Just need to add these types:
+         def("TSDeclareMethod"), TSTypeMember)]);
++    def("CallExpression")
++      .bases("TSHasOptionalTypeParameterInstantiation");
+ }
+ exports.default = default_1;
+ module.exports = exports["default"];
