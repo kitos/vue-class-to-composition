@@ -36,7 +36,7 @@ export default class ProgressBar extends Vue {
     return this.id.toString()
   }
   
-  async onMounted() {
-    this.data = await fetch(this.id)
+  mounted() {
+    fetch(this.id).then(d => this.data = d)
   }
 }`)
