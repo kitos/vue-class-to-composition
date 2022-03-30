@@ -64,9 +64,7 @@ const transformer = (src: string, j: JSCodeshift) => {
           propDecorator &&
           j.CallExpression.check(propDecorator.expression)
         ) {
-          props.push(
-            prop(propName, propDecorator.expression.arguments[0] as any)
-          )
+          props.push([propName, propDecorator.expression.arguments[0]])
         } else {
           unknown.push(classMethod)
         }
@@ -105,7 +103,10 @@ const transformer = (src: string, j: JSCodeshift) => {
       }
     }
 
-    let propsProp = prop('props', j.objectExpression(props))
+    let propsProp = prop(
+      'props',
+      j.objectExpression(props.map((p) => prop(...p)))
+    )
 
     let returnStatement = statement`return ${j.objectExpression(
       exposeToTemplate.map((v) =>
@@ -121,7 +122,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     let setup = j.objectMethod(
       'method',
       j.identifier('setup'),
-      [],
+      [j.identifier('props')],
       j.blockStatement([
         ...injects,
         ...hooks,
@@ -158,9 +159,20 @@ const transformer = (src: string, j: JSCodeshift) => {
       )
       .find(j.MemberExpression)
       .forEach((path) => {
-        if (j.ThisExpression.check(path.node.object)) {
-          // TODO: check props and root
-          path.replace(path.node.property)
+        let thisExp = path.node
+
+        if (j.ThisExpression.check(thisExp.object)) {
+          if (
+            j.Identifier.check(thisExp.property) &&
+            props.some(([n]) => n === thisExp.property.name)
+          ) {
+            path.replace(
+              j.memberExpression(j.identifier('props'), thisExp.property)
+            )
+          } else {
+            // TODO: refs? inject?
+            path.replace(thisExp.property)
+          }
         }
       })
   })
