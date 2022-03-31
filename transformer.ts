@@ -1,5 +1,6 @@
 import type { JSCodeshift } from 'jscodeshift'
 import * as K from 'ast-types/gen/kinds'
+import { methodDefinition } from 'jscodeshift'
 
 let getDecorator = (n: any, name: string): K.DecoratorKind | undefined =>
   n.decorators && n.decorators.find((d) => d.expression.callee.name === name)
@@ -66,7 +67,10 @@ const transformer = (src: string, j: JSCodeshift) => {
         ) {
           props.push([propName, propDecorator.expression.arguments[0]])
         } else {
-          unknown.push(classMethod)
+          toImportFromComposition.add('ref')
+          unknown.push(
+            statement`const ${propName} = ref<${classMethod.typeAnnotation.typeAnnotation}>();`
+          )
         }
       } else if (j.ClassMethod.check(classMethod)) {
         let propName = j.Identifier.check(classMethod.key)
