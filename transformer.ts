@@ -31,34 +31,49 @@ const transformer = (src: string, j: JSCodeshift) => {
   srcCollection.find(j.ClassDeclaration).forEach((classPath) => {
     let classMethods = classPath.node.body.body
     let exposeToTemplate = []
+    let provides = []
     let injects = []
     let props = []
     let hooks = []
     let computed = []
     let functions = []
-    let unknown = []
+    let refs = []
 
     for (let classMethod of classMethods) {
       if (j.ClassProperty.check(classMethod)) {
         let propName = j.Identifier.check(classMethod.key)
           ? classMethod.key.name
           : 'unknown'
+        let provideDecorator = getDecorator(classMethod, 'Provide')
         let injectDecorator = getDecorator(classMethod, 'Inject')
         let propDecorator = getDecorator(classMethod, 'Prop')
 
-        // inject
         if (
+          provideDecorator &&
+          j.CallExpression.check(provideDecorator.expression)
+        ) {
+          let arg = provideDecorator.expression.arguments[0]
+          let injectName = j.StringLiteral.check(arg) ? arg : str('unknown-key')
+
+          toImportFromComposition.add('provide')
+          provides.push(
+            statement`const ${propName} = provide(${injectName}, ${classMethod.value});`
+          )
+          // inject
+        } else if (
           injectDecorator &&
           j.CallExpression.check(injectDecorator.expression)
         ) {
           let arg = injectDecorator.expression.arguments[0]
           let injectName = j.StringLiteral.check(arg) ? arg : str('unknown-key')
-          let type = classMethod.typeAnnotation.typeAnnotation
+          let type = classMethod.typeAnnotation?.typeAnnotation
 
           toImportFromComposition.add('inject')
           exposeToTemplate.push(propName)
           injects.push(
-            statement`const ${propName} = inject<${type}>(${injectName});`
+            type
+              ? statement`const ${propName} = inject<${type}>(${injectName});`
+              : statement`const ${propName} = inject(${injectName});`
           )
           // prop
         } else if (
@@ -67,9 +82,13 @@ const transformer = (src: string, j: JSCodeshift) => {
         ) {
           props.push([propName, propDecorator.expression.arguments[0]])
         } else {
+          let type = classMethod.typeAnnotation?.typeAnnotation
+
           toImportFromComposition.add('ref')
-          unknown.push(
-            statement`const ${propName} = ref<${classMethod.typeAnnotation.typeAnnotation}>();`
+          refs.push(
+            type
+              ? statement`const ${propName} = ref<${type}>(${classMethod.value});`
+              : statement`const ${propName} = ref(${classMethod.value});`
           )
         }
       } else if (j.ClassMethod.check(classMethod)) {
@@ -103,7 +122,7 @@ const transformer = (src: string, j: JSCodeshift) => {
           }
         }
       } else {
-        unknown.push(classMethod)
+        refs.push(classMethod)
       }
     }
 
@@ -128,11 +147,12 @@ const transformer = (src: string, j: JSCodeshift) => {
       j.identifier('setup'),
       [j.identifier('props')],
       j.blockStatement([
+        ...provides,
         ...injects,
+        ...refs,
         ...hooks,
         ...computed,
         ...functions,
-        ...unknown,
         returnStatement,
       ])
     )

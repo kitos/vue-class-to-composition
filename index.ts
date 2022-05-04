@@ -26,17 +26,19 @@ import { Button } from '@/components'
   components: { Button }
 })
 export default class ProgressBar extends Vue {
+  @Provide('provideKey') private readonly sharedState = new SharedState(42)
   @Inject('injectKey') readonly someStore!: SomeStore
   @Prop({ type: String, required: true }) readonly id!: number
   @Prop({ type: Number, default: 0 }) readonly value!: number
   
-  data: IData = null
+  data1: IData | null = null
+  data2 = 123
   
   get compute() {
     return this.id.toString()
   }
   
   mounted() {
-    fetch(this.id).then(d => this.data = d)
+    fetch(this.id).then(d => this.data1 = d)
   }
 }`)
