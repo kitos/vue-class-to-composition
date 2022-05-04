@@ -33,11 +33,12 @@ const transformer = (src: string, j: JSCodeshift) => {
     let exposeToTemplate = []
     let provides = []
     let injects = []
-    let props = []
+    let props: [string, K.ExpressionKind][] = []
     let hooks = []
     let computed = []
     let functions = []
-    let refs = []
+    let refs: [string, K.StatementKind][] = []
+    let unknown = []
 
     for (let classMethod of classMethods) {
       if (j.ClassProperty.check(classMethod)) {
@@ -85,11 +86,12 @@ const transformer = (src: string, j: JSCodeshift) => {
           let type = classMethod.typeAnnotation?.typeAnnotation
 
           toImportFromComposition.add('ref')
-          refs.push(
+          refs.push([
+            propName,
             type
               ? statement`const ${propName} = ref<${type}>(${classMethod.value});`
-              : statement`const ${propName} = ref(${classMethod.value});`
-          )
+              : statement`const ${propName} = ref(${classMethod.value});`,
+          ])
         }
       } else if (j.ClassMethod.check(classMethod)) {
         let propName = j.Identifier.check(classMethod.key)
@@ -122,7 +124,7 @@ const transformer = (src: string, j: JSCodeshift) => {
           }
         }
       } else {
-        refs.push(classMethod)
+        unknown.push(classMethod)
       }
     }
 
@@ -149,10 +151,11 @@ const transformer = (src: string, j: JSCodeshift) => {
       j.blockStatement([
         ...provides,
         ...injects,
-        ...refs,
+        ...refs.map(([, st]) => st),
         ...hooks,
         ...computed,
         ...functions,
+        ...unknown,
         returnStatement,
       ])
     )
@@ -173,6 +176,8 @@ const transformer = (src: string, j: JSCodeshift) => {
 
     toImportFromComposition.add('defineComponent')
 
+    let needProps = false
+
     j(classPath)
       .replaceWith(
         call('defineComponent', [
@@ -186,19 +191,29 @@ const transformer = (src: string, j: JSCodeshift) => {
         let thisExp = path.node
 
         if (j.ThisExpression.check(thisExp.object)) {
-          if (
-            j.Identifier.check(thisExp.property) &&
-            props.some(([n]) => n === thisExp.property.name)
-          ) {
-            path.replace(
-              j.memberExpression(j.identifier('props'), thisExp.property)
-            )
+          if (j.Identifier.check(thisExp.property)) {
+            let { name } = thisExp.property
+
+            if (props.some(([n]) => n === name)) {
+              needProps = true
+              path.replace(
+                j.memberExpression(j.identifier('props'), thisExp.property)
+              )
+            } else if (refs.some(([n]) => n === name)) {
+              path.replace(
+                j.memberExpression(j.identifier(name), j.identifier('value'))
+              )
+            }
           } else {
             // TODO: refs? inject?
             path.replace(thisExp.property)
           }
         }
       })
+
+    if (!needProps) {
+      setup.params = []
+    }
   })
 
   srcCollection
