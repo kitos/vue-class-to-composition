@@ -40,5 +40,9 @@ export default class ProgressBar extends Vue {
   
   mounted() {
     fetch(this.id).then(d => this.data1 = d)
+    
+    this.$nextTick(() => {
+      this.$emit('event', someStore.price)
+    })
   }
 }`)

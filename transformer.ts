@@ -23,7 +23,7 @@ const transformer = (src: string, j: JSCodeshift) => {
       typeParameters,
     })
 
-  let { statement } = j.template
+  let { statement, expression } = j.template
 
   let srcCollection = j(src)
   let toImportFromComposition = new Set()
@@ -147,7 +147,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     let setup = j.objectMethod(
       'method',
       j.identifier('setup'),
-      [j.identifier('props')],
+      [],
       j.blockStatement([
         ...provides,
         ...injects,
@@ -177,6 +177,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     toImportFromComposition.add('defineComponent')
 
     let needProps = false
+    let needEmit = false
 
     j(classPath)
       .replaceWith(
@@ -194,25 +195,35 @@ const transformer = (src: string, j: JSCodeshift) => {
           if (j.Identifier.check(thisExp.property)) {
             let { name } = thisExp.property
 
-            if (props.some(([n]) => n === name)) {
+            if (name === '$nextTick') {
+              toImportFromComposition.add('nextTick')
+              path.replace(j.identifier('nextTick'))
+              return
+            } else if (name === '$emit') {
+              needEmit = true
+              path.replace(j.identifier('emit'))
+              return
+            } else if (props.some(([n]) => n === name)) {
               needProps = true
               path.replace(
                 j.memberExpression(j.identifier('props'), thisExp.property)
               )
+              return
             } else if (refs.some(([n]) => n === name)) {
               path.replace(
                 j.memberExpression(j.identifier(name), j.identifier('value'))
               )
+              return
             }
-          } else {
-            // TODO: refs? inject?
-            path.replace(thisExp.property)
           }
+
+          path.replace(thisExp.property)
         }
       })
 
-    if (!needProps) {
-      setup.params = []
+    if (needProps || needEmit) {
+      let props = j.identifier(needProps ? 'props' : '_')
+      setup.params = needEmit ? [props, expression`{ emit }`] : [props]
     }
   })
 
