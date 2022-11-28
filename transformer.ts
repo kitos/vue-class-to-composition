@@ -5,6 +5,16 @@ import { methodDefinition } from 'jscodeshift'
 let getDecorator = (n: any, name: string): K.DecoratorKind | undefined =>
   n.decorators && n.decorators.find((d) => d.expression.callee.name === name)
 
+const isLifeCycleMethod = (name: string) =>
+  [
+    'beforeCreate',
+    'created',
+    'beforeMount',
+    'mounted',
+    'beforeUnmount',
+    'unmounted',
+  ].includes(name)
+
 const transformer = (src: string, j: JSCodeshift) => {
   let str = (s = 'add something') => j.stringLiteral(s)
 
@@ -30,7 +40,7 @@ const transformer = (src: string, j: JSCodeshift) => {
 
   srcCollection.find(j.ClassDeclaration).forEach((classPath) => {
     let classMethods = classPath.node.body.body
-    let exposeToTemplate = []
+    let exposeToTemplate: string[] = []
     let provides = []
     let injects = []
     let props: [string, K.ExpressionKind][] = []
@@ -98,7 +108,9 @@ const transformer = (src: string, j: JSCodeshift) => {
           ? classMethod.key.name
           : 'unknown'
 
-        exposeToTemplate.push(propName)
+        if (!isLifeCycleMethod(propName)) {
+          exposeToTemplate.push(propName)
+        }
 
         // getter
         if (classMethod.kind === 'get') {
