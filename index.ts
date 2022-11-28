@@ -38,6 +38,11 @@ export default class ProgressBar extends Vue {
   runEffect() {
     window.alert('changed')
   }
+
+  @Watch('otherWatchedProperty', { immediate: true })
+  runAnotherEffect() {
+    window.alert('other thing changed')
+  }
   
   get compute(): string {
     return this.id.toString()

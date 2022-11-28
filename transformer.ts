@@ -46,6 +46,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     let props: [string, K.ExpressionKind][] = []
     let hooks = []
     let computed = []
+    let watchers = []
     let functions = []
     let refs: [string, K.StatementKind][] = []
     let unknown = []
@@ -108,6 +109,8 @@ const transformer = (src: string, j: JSCodeshift) => {
           ? classMethod.key.name
           : 'unknown'
 
+        let watchDecorator = getDecorator(classMethod, 'Watch')
+
         if (!isLifeCycleMethod(propName)) {
           exposeToTemplate.push(propName)
         }
@@ -115,9 +118,35 @@ const transformer = (src: string, j: JSCodeshift) => {
         // getter
         if (classMethod.kind === 'get') {
           toImportFromComposition.add('computed')
-          computed.push(
-            statement`const ${propName} = computed(() => ${classMethod.body});`
-          )
+          const type = classMethod.returnType?.typeAnnotation
+          if (type) {
+            computed.push(
+              statement`const ${propName} = computed<${type}>(() => ${classMethod.body});`
+            )
+          } else {
+            computed.push(
+              statement`const ${propName} = computed(() => ${classMethod.body});`
+            )
+          }
+        } else if (
+          watchDecorator &&
+          j.CallExpression.check(watchDecorator.expression)
+        ) {
+          const watcherArgs = watchDecorator.expression.arguments
+          const watchedExpression =
+            watcherArgs?.[0].type === 'StringLiteral' && watcherArgs[0].value
+          const watcherOptions =
+            watcherArgs[1]?.type === 'ObjectExpression' && watcherArgs[1]
+          // If watcher has options like `{ immediate: true }`
+          if (watcherOptions) {
+            watchers.push(
+              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body}, ${watcherOptions});`
+            )
+          } else {
+            watchers.push(
+              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body});`
+            )
+          }
         } else {
           if (propName === 'mounted') {
             toImportFromComposition.add('onMounted')
@@ -166,6 +195,7 @@ const transformer = (src: string, j: JSCodeshift) => {
         ...refs.map(([, st]) => st),
         ...hooks,
         ...computed,
+        ...watchers,
         ...functions,
         ...unknown,
         returnStatement,
