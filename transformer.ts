@@ -249,7 +249,7 @@ const transformer = (src: string, j: JSCodeshift) => {
         [...toImportFromComposition]
           .sort()
           .map((n) => j.importSpecifier(j.identifier(n))),
-        str('@vue/composition-api')
+        str('vue')
       )
     )
 
