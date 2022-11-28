@@ -1,4 +1,4 @@
-import { mountEditor } from './editor'
+import { mountEditor, setTheme } from './editor'
 
 let srcEditor = mountEditor('#src')
 let resultEditor = mountEditor('#result', true)
@@ -6,6 +6,22 @@ let resultEditor = mountEditor('#result', true)
 let transformWorker = new Worker(new URL('./worker.ts', import.meta.url), {
   type: 'module',
 })
+
+const darkToggle = document.querySelector('#darkToggle') as HTMLInputElement
+const savedPreference = localStorage.getItem('dark')
+const browserPreference = window.matchMedia(
+  '(prefers-color-scheme: dark)'
+).matches
+function updateTheme(dark: boolean) {
+  localStorage.setItem('dark', dark ? '1' : '0')
+  setTheme(dark ? 'vs-dark' : 'vs')
+  darkToggle.checked = dark
+  document.documentElement.classList[dark ? 'add' : 'remove']('dark')
+}
+updateTheme(savedPreference ? savedPreference === '1' : browserPreference)
+darkToggle?.addEventListener('change', (event) =>
+  updateTheme((event.target as HTMLInputElement).checked)
+)
 
 srcEditor
   .getModel()
