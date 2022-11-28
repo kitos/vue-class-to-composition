@@ -126,13 +126,13 @@ const transformer = (src: string, j: JSCodeshift) => {
             toImportFromComposition.add('onBeforeUnmount')
             hooks.push(statement`onBeforeUnmount(() => ${classMethod.body});`)
           } else {
-            functions.push(
-              j.functionDeclaration(
-                j.identifier(propName),
-                classMethod.params,
-                classMethod.body
-              )
+            const fn = j.functionDeclaration(
+              j.identifier(propName),
+              classMethod.params,
+              classMethod.body
             )
+            fn.returnType = classMethod.returnType
+            functions.push(fn)
           }
         }
       } else {

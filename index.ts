@@ -51,7 +51,7 @@ export default class ProgressBar extends Vue {
     })
   }
 
-  classMethod(): number {
-    return 4
+  classMethod(input: number): number {
+    return input * 4
   }
 }`)
