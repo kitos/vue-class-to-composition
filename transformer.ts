@@ -154,6 +154,8 @@ const transformer = (src: string, j: JSCodeshift) => {
           } else if (propName === 'beforeDestroy') {
             toImportFromComposition.add('onBeforeUnmount')
             hooks.push(statement`onBeforeUnmount(() => ${classMethod.body});`)
+          } else if (propName === 'created') {
+            hooks.push(...classMethod.body.body.map((st) => statement`${st}`))
           } else {
             const fn = j.functionDeclaration(
               j.identifier(propName),
