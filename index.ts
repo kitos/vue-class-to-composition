@@ -33,8 +33,13 @@ export default class ProgressBar extends Vue {
   
   data1: IData | null = null
   data2 = 123
+
+  @Watch('watchedProperty')
+  runEffect() {
+    window.alert('changed')
+  }
   
-  get compute() {
+  get compute(): string {
     return this.id.toString()
   }
   
@@ -44,5 +49,9 @@ export default class ProgressBar extends Vue {
     this.$nextTick(() => {
       this.$emit('event', someStore.price)
     })
+  }
+
+  classMethod(): number {
+    return 4
   }
 }`)
