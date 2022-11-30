@@ -118,20 +118,14 @@ const transformer = (src: string, j: JSCodeshift) => {
         // getter
         if (classMethod.kind === 'get') {
           toImportFromComposition.add('computed')
-          const type = classMethod.returnType?.typeAnnotation
-          if (type) {
-            computed.push(
-              statement`const ${propName} = computed<${type}>(() => ${classMethod.body});`
-            )
-          } else {
-            computed.push(
-              statement`const ${propName} = computed(() => ${classMethod.body});`
-            )
-          }
+          computed.push(
+            statement`const ${propName} = computed(() => ${classMethod.body});`
+          )
         } else if (
           watchDecorator &&
           j.CallExpression.check(watchDecorator.expression)
         ) {
+          toImportFromComposition.add('watch')
           const watcherArgs = watchDecorator.expression.arguments
           const watchedExpression =
             watcherArgs?.[0].type === 'StringLiteral' && watcherArgs[0].value
