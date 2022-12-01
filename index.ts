@@ -46,6 +46,7 @@ export default class ProgressBar extends Vue {
   @Inject('injectKey') readonly someStore!: SomeStore
   @Prop({ type: String, required: true }) readonly id!: number
   @Prop({ type: Number, default: 0 }) readonly value!: number
+  @Prop({ type: Number, default: 0 }) readonly property!: CustomClass
   
   data1: IData | null = null
   data2 = 123
@@ -61,10 +62,16 @@ export default class ProgressBar extends Vue {
   }
   
   get compute(): string {
+    const thing = window.getThing()
+    return thing + this.id.toString()
+  }
+  
+  get oneLinerComputed(): string {
     return this.id.toString()
   }
   
   mounted() {
+
     fetch(this.id).then(d => this.data1 = d)
     
     this.$nextTick(() => {

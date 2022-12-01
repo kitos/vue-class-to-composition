@@ -1,4 +1,4 @@
-import type { JSCodeshift } from 'jscodeshift'
+import type { CallExpression, JSCodeshift } from 'jscodeshift'
 import * as K from 'ast-types/gen/kinds'
 import { methodDefinition } from 'jscodeshift'
 
@@ -49,6 +49,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     let watchers = []
     let functions = []
     let refs: [string, K.StatementKind][] = []
+    let emittedEvents = []
     let unknown = []
 
     for (let classMethod of classMethods) {
@@ -92,7 +93,21 @@ const transformer = (src: string, j: JSCodeshift) => {
           propDecorator &&
           j.CallExpression.check(propDecorator.expression)
         ) {
-          props.push([propName, propDecorator.expression.arguments[0]])
+          const typeAnnotation = classMethod.typeAnnotation?.typeAnnotation
+          const name =
+            typeAnnotation?.type === 'TSTypeReference'
+              ? typeAnnotation.typeName.name
+              : null
+          let args = propDecorator.expression.arguments[0]
+          if (name) {
+            args.properties.forEach((arg) => {
+              if (arg.key.name === 'type') {
+                toImportFromComposition.add('PropType')
+                arg.value = expression`${arg.value.name} as PropType<${name}>`
+              }
+            })
+          }
+          props.push([propName, args])
         } else {
           let type = classMethod.typeAnnotation?.typeAnnotation
 
@@ -118,9 +133,13 @@ const transformer = (src: string, j: JSCodeshift) => {
         // getter
         if (classMethod.kind === 'get') {
           toImportFromComposition.add('computed')
+          const body =
+            classMethod.body.body[0].type === 'ReturnStatement'
+              ? classMethod.body.body[0].argument
+              : classMethod.body
           computed.push([
             propName,
-            statement`const ${propName} = computed(() => ${classMethod.body});`,
+            statement`const ${propName} = computed(() => ${body});`,
           ])
         } else if (
           watchDecorator &&
@@ -166,38 +185,16 @@ const transformer = (src: string, j: JSCodeshift) => {
       }
     }
 
-    let propsProp = prop(
-      'props',
-      j.objectExpression(props.map((p) => prop(...p)))
-    )
-
-    let returnStatement = statement`return ${j.objectExpression(
-      exposeToTemplate.map((v) =>
-        j.property.from({
-          kind: 'init',
-          key: j.identifier(v),
-          shorthand: true,
-          value: j.identifier(v),
-        })
-      )
-    )}`
-
-    let setup = j.objectMethod(
-      'method',
-      j.identifier('setup'),
-      [],
-      j.blockStatement([
-        ...provides,
-        ...injects,
-        ...refs.map(([, st]) => st),
-        ...hooks,
-        ...computed.map(([, st]) => st),
-        ...watchers,
-        ...functions,
-        ...unknown,
-        returnStatement,
-      ])
-    )
+    let setup = j.blockStatement([
+      ...provides,
+      ...injects,
+      ...refs.map(([, st]) => st),
+      ...hooks,
+      ...computed.map(([, st]) => st),
+      ...watchers,
+      ...functions,
+      ...unknown,
+    ])
 
     let componentsProp
     let compDecorator = getDecorator(classPath.node, 'Component')?.expression
@@ -213,19 +210,12 @@ const transformer = (src: string, j: JSCodeshift) => {
       }
     }
 
-    toImportFromComposition.add('defineComponent')
-
     let needProps = false
     let needEmit = false
 
+    const declaration = srcCollection.find(j.ClassDeclaration)
+
     j(classPath)
-      .replaceWith(
-        call('defineComponent', [
-          j.objectExpression(
-            [componentsProp, propsProp, setup].filter(Boolean)
-          ),
-        ])
-      )
       .find(j.MemberExpression)
       .forEach((path) => {
         let thisExp = path.node
@@ -240,6 +230,8 @@ const transformer = (src: string, j: JSCodeshift) => {
               return
             } else if (name === '$emit') {
               needEmit = true
+              // Add to a list for `defineEmits()`
+              emittedEvents.push(path.parent.value.arguments[0].value)
               path.replace(j.identifier('emit'))
               return
             } else if (props.some(([n]) => n === name)) {
@@ -260,10 +252,29 @@ const transformer = (src: string, j: JSCodeshift) => {
         }
       })
 
-    if (needProps || needEmit) {
-      let props = j.identifier(needProps ? 'props' : '_')
-      setup.params = needEmit ? [props, expression`{ emit }`] : [props]
+    // Define props
+    if (needProps) {
+      srcCollection
+        .find(j.ExportDefaultDeclaration)
+        .insertBefore(
+          statement`const props = defineProps(${j.objectExpression(
+            props.map((p) => prop(...p))
+          )});`
+        )
     }
+
+    // Define emits
+    if (needEmit) {
+      srcCollection
+        .find(j.ExportDefaultDeclaration)
+        .insertBefore(
+          statement`const emit = defineEmits(${j.arrayExpression(
+            emittedEvents.map((str) => j.stringLiteral(str))
+          )});`
+        )
+    }
+
+    srcCollection.find(j.ExportDefaultDeclaration).replaceWith(setup.body)
   })
 
   srcCollection
