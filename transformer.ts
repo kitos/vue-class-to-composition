@@ -45,7 +45,7 @@ const transformer = (src: string, j: JSCodeshift) => {
     let injects = []
     let props: [string, K.ExpressionKind][] = []
     let hooks = []
-    let computed = []
+    let computed: [string, K.StatementKind][] = []
     let watchers = []
     let functions = []
     let refs: [string, K.StatementKind][] = []
@@ -118,9 +118,10 @@ const transformer = (src: string, j: JSCodeshift) => {
         // getter
         if (classMethod.kind === 'get') {
           toImportFromComposition.add('computed')
-          computed.push(
-            statement`const ${propName} = computed(() => ${classMethod.body});`
-          )
+          computed.push([
+            propName,
+            statement`const ${propName} = computed(() => ${classMethod.body});`,
+          ])
         } else if (
           watchDecorator &&
           j.CallExpression.check(watchDecorator.expression)
@@ -190,7 +191,7 @@ const transformer = (src: string, j: JSCodeshift) => {
         ...injects,
         ...refs.map(([, st]) => st),
         ...hooks,
-        ...computed,
+        ...computed.map(([, st]) => st),
         ...watchers,
         ...functions,
         ...unknown,
@@ -247,7 +248,7 @@ const transformer = (src: string, j: JSCodeshift) => {
                 j.memberExpression(j.identifier('props'), thisExp.property)
               )
               return
-            } else if (refs.some(([n]) => n === name)) {
+            } else if ([...refs, ...computed].some(([n]) => n === name)) {
               path.replace(
                 j.memberExpression(j.identifier(name), j.identifier('value'))
               )
