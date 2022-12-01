@@ -5,6 +5,16 @@ import { methodDefinition } from 'jscodeshift'
 let getDecorator = (n: any, name: string): K.DecoratorKind | undefined =>
   n.decorators && n.decorators.find((d) => d.expression.callee.name === name)
 
+const isLifeCycleMethod = (name: string) =>
+  [
+    'beforeCreate',
+    'created',
+    'beforeMount',
+    'mounted',
+    'beforeUnmount',
+    'unmounted',
+  ].includes(name)
+
 const transformer = (src: string, j: JSCodeshift) => {
   let str = (s = 'add something') => j.stringLiteral(s)
 
@@ -30,12 +40,13 @@ const transformer = (src: string, j: JSCodeshift) => {
 
   srcCollection.find(j.ClassDeclaration).forEach((classPath) => {
     let classMethods = classPath.node.body.body
-    let exposeToTemplate = []
+    let exposeToTemplate: string[] = []
     let provides = []
     let injects = []
     let props: [string, K.ExpressionKind][] = []
     let hooks = []
-    let computed = []
+    let computed: [string, K.StatementKind][] = []
+    let watchers = []
     let functions = []
     let refs: [string, K.StatementKind][] = []
     let unknown = []
@@ -98,14 +109,39 @@ const transformer = (src: string, j: JSCodeshift) => {
           ? classMethod.key.name
           : 'unknown'
 
-        exposeToTemplate.push(propName)
+        let watchDecorator = getDecorator(classMethod, 'Watch')
+
+        if (!isLifeCycleMethod(propName)) {
+          exposeToTemplate.push(propName)
+        }
 
         // getter
         if (classMethod.kind === 'get') {
           toImportFromComposition.add('computed')
-          computed.push(
-            statement`const ${propName} = computed(() => ${classMethod.body});`
-          )
+          computed.push([
+            propName,
+            statement`const ${propName} = computed(() => ${classMethod.body});`,
+          ])
+        } else if (
+          watchDecorator &&
+          j.CallExpression.check(watchDecorator.expression)
+        ) {
+          toImportFromComposition.add('watch')
+          const watcherArgs = watchDecorator.expression.arguments
+          const watchedExpression =
+            watcherArgs?.[0].type === 'StringLiteral' && watcherArgs[0].value
+          const watcherOptions =
+            watcherArgs[1]?.type === 'ObjectExpression' && watcherArgs[1]
+          // If watcher has options like `{ immediate: true }`
+          if (watcherOptions) {
+            watchers.push(
+              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body}, ${watcherOptions});`
+            )
+          } else {
+            watchers.push(
+              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body});`
+            )
+          }
         } else {
           if (propName === 'mounted') {
             toImportFromComposition.add('onMounted')
@@ -113,14 +149,16 @@ const transformer = (src: string, j: JSCodeshift) => {
           } else if (propName === 'beforeDestroy') {
             toImportFromComposition.add('onBeforeUnmount')
             hooks.push(statement`onBeforeUnmount(() => ${classMethod.body});`)
+          } else if (propName === 'created') {
+            hooks.push(...classMethod.body.body.map((st) => statement`${st}`))
           } else {
-            functions.push(
-              j.functionDeclaration(
-                j.identifier(propName),
-                classMethod.params,
-                classMethod.body
-              )
+            const fn = j.functionDeclaration(
+              j.identifier(propName),
+              classMethod.params,
+              classMethod.body
             )
+            fn.returnType = classMethod.returnType
+            functions.push(fn)
           }
         }
       } else {
@@ -153,7 +191,8 @@ const transformer = (src: string, j: JSCodeshift) => {
         ...injects,
         ...refs.map(([, st]) => st),
         ...hooks,
-        ...computed,
+        ...computed.map(([, st]) => st),
+        ...watchers,
         ...functions,
         ...unknown,
         returnStatement,
@@ -209,7 +248,7 @@ const transformer = (src: string, j: JSCodeshift) => {
                 j.memberExpression(j.identifier('props'), thisExp.property)
               )
               return
-            } else if (refs.some(([n]) => n === name)) {
+            } else if ([...refs, ...computed].some(([n]) => n === name)) {
               path.replace(
                 j.memberExpression(j.identifier(name), j.identifier('value'))
               )
@@ -237,7 +276,7 @@ const transformer = (src: string, j: JSCodeshift) => {
         [...toImportFromComposition]
           .sort()
           .map((n) => j.importSpecifier(j.identifier(n))),
-        str('@vue/composition-api')
+        str('vue')
       )
     )
 

@@ -8,9 +8,40 @@
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✌️</text></svg>"
     />
   </head>
+  <script type="application/javascript">
+    const savedPreference = localStorage.getItem('dark')
+    const browserPreference = window.matchMedia(
+      '(prefers-color-scheme: dark)'
+    ).matches
+    if (
+      (savedPreference && savedPreference === '1') ||
+      (!savedPreference && browserPreference)
+    )
+      document.documentElement.classList.add('dark')
+  </script>
   <style>
+    :root {
+      --header-height: calc(1.5rem + 2px);
+      --background-color: #fffffe;
+      --foreground-color: #1e1e1e;
+      --header-border-color: #ccc;
+    }
+
+    html.dark {
+      --background-color: #1e1e1e;
+      --foreground-color: #fffffe;
+      --header-border-color: #555;
+    }
+
     main {
       display: flex;
+    }
+
+    html {
+      background-color: var(--background-color);
+      color: var(--foreground-color);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
     html,
@@ -22,16 +53,37 @@
       margin: 0;
     }
 
-    #src,
-    #result {
+    header {
+      height: var(--header-height);
+      border-bottom: 2px solid var(--header-border-color);
+      padding: 0 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .darkModeLabel {
+      user-select: none;
+    }
+
+    .editor {
+      height: calc(100% - var(--header-height));
       flex: 1 0 50%;
     }
   </style>
   <script type="module" src="./index.ts"></script>
   <body>
+    <header>
+      <form>
+        <label class="darkModeLabel">
+          <input type="checkbox" id="darkToggle" />
+          Dark
+        </label>
+      </form>
+    </header>
     <main>
-      <div id="src"></div>
-      <div id="result"></div>
+      <div id="src" class="editor"></div>
+      <div id="result" class="editor"></div>
     </main>
   </body>
 </html>

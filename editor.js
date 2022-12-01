@@ -34,3 +34,8 @@ export let mountEditor = (root, readOnly = false) =>
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
   })
+
+/**
+ * @param {'vs' | 'vs-dark'} theme
+ */
+export const setTheme = (theme) => monaco.editor.setTheme(theme)
