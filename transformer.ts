@@ -153,7 +153,6 @@ const transformer = (src: string, j: JSCodeshift) => {
             watcherArgs[1]?.type === 'ObjectExpression' && watcherArgs[1]
           // If watcher has options like `{ immediate: true }`
 
-          console.log(watchedExpression)
           const expr = props.some(([name]) => name === watchedExpression)
             ? expression`() => ${watchedExpression}`
             : watchedExpression
@@ -256,7 +255,7 @@ const transformer = (src: string, j: JSCodeshift) => {
       })
 
     // Define props
-    if (needProps) {
+    if (props.length) {
       srcCollection
         .find(j.ExportDefaultDeclaration)
         .insertBefore(
