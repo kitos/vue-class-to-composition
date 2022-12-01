@@ -152,14 +152,17 @@ const transformer = (src: string, j: JSCodeshift) => {
           const watcherOptions =
             watcherArgs[1]?.type === 'ObjectExpression' && watcherArgs[1]
           // If watcher has options like `{ immediate: true }`
+
+          console.log(watchedExpression)
+          const expr = props.some(([name]) => name === watchedExpression)
+            ? expression`() => ${watchedExpression}`
+            : watchedExpression
           if (watcherOptions) {
             watchers.push(
-              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body}, ${watcherOptions});`
+              statement`watch(${expr}, () => ${classMethod.body}, ${watcherOptions});`
             )
           } else {
-            watchers.push(
-              statement`watch(() => ${watchedExpression} /* Check: is this argument reactive? */, () => ${classMethod.body});`
-            )
+            watchers.push(statement`watch(${expr}, () => ${classMethod.body});`)
           }
         } else {
           if (propName === 'mounted') {

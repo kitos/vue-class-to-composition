@@ -46,12 +46,12 @@ export default class ProgressBar extends Vue {
   @Inject('injectKey') readonly someStore!: SomeStore
   @Prop({ type: String, required: true }) readonly id!: number
   @Prop({ type: Number, default: 0 }) readonly value!: number
-  @Prop({ type: Number, default: 0 }) readonly property!: CustomClass
+  @Prop({ type: Number, default: 0 }) readonly customProperty!: CustomClass
   
   data1: IData | null = null
   data2 = 123
 
-  @Watch('watchedProperty')
+  @Watch('customProperty')
   runEffect() {
     window.alert('changed')
   }
@@ -71,7 +71,6 @@ export default class ProgressBar extends Vue {
   }
   
   mounted() {
-
     fetch(this.id).then(d => this.data1 = d)
     
     this.$nextTick(() => {
